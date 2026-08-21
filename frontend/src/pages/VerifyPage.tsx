@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Search, Loader2, QrCode } from 'lucide-react';
+import { Search, Loader2, QrCode, Camera } from 'lucide-react';
 import { verifyUnit } from '../services/api';
 import { VerifiedCard } from '../components/VerifyResult/VerifiedCard';
 import { SuspiciousCard } from '../components/VerifyResult/SuspiciousCard';
 import { RecalledCard } from '../components/VerifyResult/RecalledCard';
+import { QRScanner } from '../components/QRScanner';
 import type { VerificationResponse } from '../types';
 
 function getResultType(data: VerificationResponse): 'verified' | 'suspicious' | 'recalled' {
@@ -21,6 +22,13 @@ export function VerifyPage() {
   const [result, setResult] = useState<VerificationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+
+  const handleScan = useCallback((scannedId: string) => {
+    setShowScanner(false);
+    setUnitId(scannedId);
+    handleVerify(scannedId);
+  }, []);
 
   const handleVerify = useCallback(async (id?: string) => {
     const targetId = (id ?? unitId).trim();
@@ -48,6 +56,11 @@ export function VerifyPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* QR Scanner modal */}
+      {showScanner && (
+        <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
+      )}
+
       <div className="max-w-2xl mx-auto px-4 py-10">
 
         {/* Hero */}
@@ -56,13 +69,13 @@ export function VerifyPage() {
             <Search className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-extrabold text-slate-900">Verify Medicine</h1>
-          <p className="text-slate-500 mt-2">Enter the unit ID printed on the medicine packaging to verify its authenticity</p>
+          <p className="text-slate-500 mt-2">Scan the QR code on the packaging or enter the unit ID to verify authenticity</p>
         </div>
 
         {/* Search box */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
           <label className="block text-sm font-semibold text-slate-700 mb-2">Medicine Unit ID</label>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <input
               type="text"
               value={unitId}
@@ -72,9 +85,18 @@ export function VerifyPage() {
               className="flex-1 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <button
+              onClick={() => setShowScanner(true)}
+              disabled={loading}
+              title="Scan QR Code with camera"
+              className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 px-4 py-3 rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50 flex-shrink-0"
+            >
+              <Camera className="w-5 h-5" />
+              <span className="hidden sm:inline text-sm font-semibold">Scan</span>
+            </button>
+            <button
               onClick={() => handleVerify()}
               disabled={loading || !unitId.trim()}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl transition-colors flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-5 py-3 rounded-xl transition-colors flex items-center gap-2 flex-shrink-0"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               {loading ? 'Verifying...' : 'Verify'}

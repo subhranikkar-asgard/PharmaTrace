@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera } from 'lucide-react';
+import { BrowserQRCodeReader } from '@zxing/browser';
+import type { IScannerControls } from '@zxing/browser';
+import { X, Camera, Loader2 } from 'lucide-react';
 
 interface Props {
   onScan: (unitId: string) => void;
@@ -8,105 +9,146 @@ interface Props {
 }
 
 function extractUnitId(raw: string): string {
-  // If it's a URL like https://...pharmatrace.../verify/B2026-001-000001
-  // extract the last path segment
   try {
     const url = new URL(raw);
     const parts = url.pathname.split('/').filter(Boolean);
-    const verifyIndex = parts.indexOf('verify');
-    if (verifyIndex !== -1 && parts[verifyIndex + 1]) {
-      return parts[verifyIndex + 1];
-    }
-  } catch {
-    // not a URL — use as-is
-  }
+    const idx = parts.indexOf('verify');
+    if (idx !== -1 && parts[idx + 1]) return parts[idx + 1];
+  } catch { /* not a URL — use as-is */ }
   return raw.trim();
 }
 
 export function QRScanner({ onScan, onClose }: Props) {
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const elementId = 'pharmatrace-qr-reader';
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
+  const [status, setStatus] = useState<'starting' | 'active' | 'error'>('starting');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    const scanner = new Html5Qrcode(elementId);
-    scannerRef.current = scanner;
+    const reader = new BrowserQRCodeReader();
+    let stopped = false;
 
-    scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      (decodedText) => {
-        // Success — extract unit ID and notify parent
-        const unitId = extractUnitId(decodedText);
-        scanner.stop().catch(() => {});
-        onScan(unitId);
-      },
-      () => { /* scan failures are normal — ignore per-frame errors */ }
-    ).then(() => {
-      setScanning(true);
-    }).catch((err) => {
-      setError(
-        err?.message?.includes('Permission')
-          ? 'Camera permission denied. Please allow camera access and try again.'
-          : 'Could not start camera. Make sure your device has a camera.'
-      );
+    reader.decodeFromVideoDevice(
+      undefined, // use default camera (rear on mobile)
+      videoRef.current!,
+      (result, err, controls) => {
+        if (!controlsRef.current) {
+          controlsRef.current = controls;
+          if (!stopped) setStatus('active');
+        }
+        if (result && !stopped) {
+          stopped = true;
+          controls.stop();
+          onScan(extractUnitId(result.getText()));
+        }
+        // Ignore per-frame decode errors — they are normal
+        void err;
+      }
+    ).catch((err: Error) => {
+      if (stopped) return;
+      const msg = err?.message ?? '';
+      if (msg.includes('ermission') || msg.includes('denied')) {
+        setErrorMsg('Camera permission denied. Please allow camera access in your browser settings and try again.');
+      } else if (msg.includes('ound') || msg.includes('device')) {
+        setErrorMsg('No camera found. Make sure your device has a working camera.');
+      } else {
+        setErrorMsg('Could not start the camera. Try closing other apps using the camera and retry.');
+      }
+      setStatus('error');
     });
 
     return () => {
-      scanner.stop().catch(() => {});
+      stopped = true;
+      controlsRef.current?.stop();
     };
   }, []);
 
   const handleClose = () => {
-    scannerRef.current?.stop().catch(() => {});
+    controlsRef.current?.stop();
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-
+    // Backdrop — stops click propagation to prevent accidental close
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4"
+      onClick={handleClose}
+    >
+      {/* Modal card — clicks inside do NOT close the modal */}
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="bg-blue-600 px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center justify-between bg-blue-600 px-5 py-4">
           <div className="flex items-center gap-2 text-white">
             <Camera className="w-5 h-5" />
-            <span className="font-bold">Scan Medicine QR Code</span>
+            <span className="font-bold text-sm">Scan Medicine QR Code</span>
           </div>
-          <button onClick={handleClose} className="text-white/80 hover:text-white">
+          <button
+            onClick={handleClose}
+            className="text-white/80 hover:text-white transition-colors"
+            aria-label="Close scanner"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scanner */}
-        <div className="p-4">
-          {error ? (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-              <p className="text-red-700 text-sm font-medium">{error}</p>
-              <button onClick={handleClose}
-                className="mt-3 text-sm text-red-600 underline hover:text-red-800">
+        {/* Body */}
+        <div className="p-4 space-y-3">
+          {status === 'error' ? (
+            /* Error state */
+            <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center space-y-3">
+              <p className="text-red-700 text-sm font-medium leading-snug">{errorMsg}</p>
+              <button
+                onClick={handleClose}
+                className="text-sm font-semibold text-red-600 underline hover:text-red-800"
+              >
                 Close
               </button>
             </div>
           ) : (
             <>
-              {/* html5-qrcode mounts itself into this div */}
-              <div id={elementId} className="rounded-xl overflow-hidden" />
+              {/* Video viewfinder — camera renders here, no library HTML injected */}
+              <div className="relative rounded-xl overflow-hidden bg-black" style={{ height: 280 }}>
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover"
+                  playsInline
+                  muted
+                  autoPlay
+                />
 
-              {!scanning && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="ml-2 text-slate-500 text-sm">Starting camera...</span>
-                </div>
-              )}
+                {/* Loading overlay */}
+                {status === 'starting' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-3">
+                    <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    <p className="text-white text-sm font-medium">Starting camera…</p>
+                  </div>
+                )}
 
-              <p className="text-center text-xs text-slate-400 mt-3">
+                {/* Scan frame overlay */}
+                {status === 'active' && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-48 h-48 relative">
+                      {/* Corner markers */}
+                      <span className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl" />
+                      <span className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr" />
+                      <span className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl" />
+                      <span className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br" />
+                      {/* Scan line animation */}
+                      <div className="absolute left-1 right-1 h-0.5 bg-blue-400/80 animate-bounce" style={{ top: '50%' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-center text-xs text-slate-400 pb-1">
                 Point the camera at the QR code on the medicine packaging
               </p>
             </>
           )}
         </div>
-
       </div>
     </div>
   );

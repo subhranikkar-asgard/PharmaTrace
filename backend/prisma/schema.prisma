@@ -1,13 +1,14 @@
 // Prisma schema for PharmaTrace
-// Using SQLite for dev simplicity (see DATABASE.md §0 for PostgreSQL switch)
-// To switch to PostgreSQL: change provider to "postgresql" and update DATABASE_URL
+// Provider: postgresql (Supabase / Railway / any Postgres)
+// LOCAL DEV: set DATABASE_URL to your Supabase connection string
+//            OR change provider to "sqlite" and DATABASE_URL="file:./dev.db"
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

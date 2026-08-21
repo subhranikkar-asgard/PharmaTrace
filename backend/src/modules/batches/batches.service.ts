@@ -80,3 +80,34 @@ export async function getAllBatches() {
     orderBy: { createdAt: 'desc' },
   });
 }
+
+export async function deleteBatch(batchId: string, organizationId: string) {
+  const batch = await prisma.batch.findUnique({
+    where: { id: batchId },
+    include: { units: { select: { id: true } } },
+  });
+  if (!batch) throw new AppError(404, 'BATCH_NOT_FOUND', 'Batch not found.');
+  if (batch.organizationId !== organizationId)
+    throw new AppError(403, 'FORBIDDEN', 'You can only delete your own batches.');
+  if (batch.status === 'RECALLED')
+    throw new AppError(400, 'VALIDATION_ERROR', 'Recalled batches cannot be deleted.');
+
+  const unitIds = batch.units.map(u => u.id);
+
+  await prisma.$transaction(async (tx) => {
+    if (unitIds.length > 0) {
+      // Delete all child records of units (in correct FK order)
+      await tx.fraudAlert.deleteMany({ where: { unitId: { in: unitIds } } });
+      await tx.scanEvent.deleteMany({ where: { unitId: { in: unitIds } } });
+      await tx.supplyChainEvent.deleteMany({ where: { unitId: { in: unitIds } } });
+      await tx.sale.deleteMany({ where: { unitId: { in: unitIds } } });
+      await tx.medicineUnit.deleteMany({ where: { batchId } });
+    }
+    // Delete batch-level records
+    await tx.recall.deleteMany({ where: { batchId } });
+    await tx.auditEvent.deleteMany({ where: { entityId: batchId } });
+    await tx.batch.delete({ where: { id: batchId } });
+  });
+
+  return { deleted: true, batchId, unitsDeleted: unitIds.length };
+}

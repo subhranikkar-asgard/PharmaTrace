@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "description": "PharmaTrace Backend API",
   "main": "dist/index.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
-    "build": "npx prisma generate && npx prisma db push --accept-data-loss && npx ts-node prisma/seed.ts",
-    "start": "npx ts-node src/index.ts",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "build": "npx prisma generate && npx prisma db push --accept-data-loss && npx tsx prisma/seed.ts",
+    "start": "npx tsx src/index.ts",
+    "prisma:seed": "npx tsx prisma/seed.ts"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.16.0",
@@ -30,6 +33,7 @@
     "nodemon": "^3.1.4",
     "prisma": "^5.16.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.16.2",
     "typescript": "^5.5.4"
   }
 }

@@ -44,6 +44,9 @@ export const getBatches = (): Promise<BatchItem[]> =>
 export const getBatch = (batchId: string): Promise<BatchItem> =>
   client.get(`/batches/${batchId}`).then(r => r.data.data);
 
+export const deleteBatch = (batchId: string): Promise<{ deleted: boolean; unitsDeleted: number }> =>
+  client.delete(`/batches/${batchId}`).then(r => r.data.data);
+
 export const createBatch = (data: {
   medicineId: string; batchNumber: string;
   quantity: number; manufactureDate: string; expiryDate: string;

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, QrCode, Truck, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, Plus, QrCode, Truck, Loader2, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getBatches, getMedicines, createBatch, getOrganizations, createTransfer, getBatch } from '../services/api';
+import { getBatches, getMedicines, createBatch, getOrganizations, createTransfer, getBatch, deleteBatch } from '../services/api';
 import { QRDisplay } from '../components/QRDisplay';
 import type { BatchItem, Organization } from '../types';
 
@@ -37,6 +37,8 @@ export function ManufacturerPage() {
   const [transferLocation, setTransferLocation] = useState('');
   const [transferring, setTransferring] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; batchNumber: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Create batch form state
   const [form, setForm] = useState({
@@ -87,6 +89,22 @@ export function ManufacturerPage() {
     } catch (err: any) {
       setMsg('❌ ' + (err?.response?.data?.error?.message ?? 'Transfer failed'));
     } finally { setTransferring(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      const result = await deleteBatch(deleteConfirm.id);
+      setBatches(prev => prev.filter(b => b.id !== deleteConfirm.id));
+      if (expandedBatch === deleteConfirm.id) setExpandedBatch(null);
+      setMsg(`✅ Batch ${deleteConfirm.batchNumber} deleted (${result.unitsDeleted} units removed).`);
+      setDeleteConfirm(null);
+      setTimeout(() => setMsg(null), 5000);
+    } catch (err: any) {
+      setMsg('❌ ' + (err?.response?.data?.error?.message ?? 'Delete failed'));
+      setDeleteConfirm(null);
+    } finally { setDeleting(false); }
   };
 
   if (loading) return (
@@ -204,6 +222,15 @@ export function ManufacturerPage() {
                 <span className="text-xs text-slate-400">
                   Exp: {new Date(batch.expiryDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
                 </span>
+                {batch.status !== 'RECALLED' && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setDeleteConfirm({ id: batch.id, batchNumber: batch.batchNumber }); }}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete batch"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
                 {expandedBatch === batch.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
               </div>
             </div>
@@ -284,6 +311,43 @@ export function ManufacturerPage() {
           </div>
         ))}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900">Delete Batch?</h3>
+                <p className="text-sm text-slate-500">This cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-700 mb-6">
+              Batch <span className="font-mono font-semibold">{deleteConfirm.batchNumber}</span> and all its units will be permanently deleted.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="flex-1 border border-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

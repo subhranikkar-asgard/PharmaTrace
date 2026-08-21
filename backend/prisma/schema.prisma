@@ -1,0 +1,221 @@
+// Prisma schema for PharmaTrace
+// Using SQLite for dev simplicity (see DATABASE.md §0 for PostgreSQL switch)
+// To switch to PostgreSQL: change provider to "postgresql" and update DATABASE_URL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums (stored as String in SQLite) ──────────────────────────────────────
+
+// ─── Organization ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // OrgType: MANUFACTURER | DISTRIBUTOR | WHOLESALER | PHARMACY | REGULATOR
+  city      String?
+  lat       Float?
+  lng       Float?
+  createdAt DateTime @default(now())
+
+  users         User[]
+  medicines     Medicine[]
+  batches       Batch[]
+  unitsSent     SupplyChainEvent[] @relation("SenderOrg")
+  unitsReceived SupplyChainEvent[] @relation("ReceiverOrg")
+  sales         Sale[]
+
+  @@index([type])
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  role           String   // Role: MANUFACTURER | DISTRIBUTOR | WHOLESALER | PHARMACY | REGULATOR
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  auditEvents  AuditEvent[]
+
+  @@index([email])
+  @@index([organizationId])
+}
+
+// ─── Medicine ─────────────────────────────────────────────────────────────────
+
+model Medicine {
+  id             String   @id @default(cuid())
+  name           String
+  strength       String
+  form           String
+  manufacturerId String
+  createdAt      DateTime @default(now())
+
+  manufacturer Organization @relation(fields: [manufacturerId], references: [id])
+  batches      Batch[]
+
+  @@index([manufacturerId])
+}
+
+// ─── Batch ────────────────────────────────────────────────────────────────────
+
+model Batch {
+  id              String   @id @default(cuid())
+  batchNumber     String   @unique
+  medicineId      String
+  organizationId  String
+  quantity        Int
+  manufactureDate DateTime
+  expiryDate      DateTime
+  status          String   @default("ACTIVE") // BatchStatus: ACTIVE | RECALLED
+  createdAt       DateTime @default(now())
+
+  medicine     Medicine       @relation(fields: [medicineId], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  units        MedicineUnit[]
+  recalls      Recall[]
+
+  @@index([batchNumber])
+  @@index([medicineId])
+  @@index([status])
+}
+
+// ─── MedicineUnit ─────────────────────────────────────────────────────────────
+
+model MedicineUnit {
+  id        String   @id @default(cuid())
+  unitId    String   @unique // e.g. "B2026-001-000001"
+  batchId   String
+  status    String   @default("REGISTERED") // UnitStatus enum
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  batch       Batch              @relation(fields: [batchId], references: [id])
+  supplyChain SupplyChainEvent[]
+  scans       ScanEvent[]
+  sale        Sale?
+  fraudAlerts FraudAlert[]
+
+  @@index([unitId])
+  @@index([batchId])
+  @@index([status])
+}
+
+// ─── SupplyChainEvent ─────────────────────────────────────────────────────────
+
+model SupplyChainEvent {
+  id            String   @id @default(cuid())
+  unitId        String
+  senderOrgId   String?
+  receiverOrgId String
+  eventType     String
+  location      String?
+  lat           Float?
+  lng           Float?
+  notes         String?
+  auditHash     String?
+  timestamp     DateTime @default(now())
+
+  unit        MedicineUnit  @relation(fields: [unitId], references: [id])
+  senderOrg   Organization? @relation("SenderOrg", fields: [senderOrgId], references: [id])
+  receiverOrg Organization  @relation("ReceiverOrg", fields: [receiverOrgId], references: [id])
+
+  @@index([unitId])
+  @@index([timestamp])
+}
+
+// ─── ScanEvent ────────────────────────────────────────────────────────────────
+
+model ScanEvent {
+  id        String   @id @default(cuid())
+  unitId    String
+  scannedAt DateTime @default(now())
+  lat       Float?
+  lng       Float?
+  location  String?
+  ipAddress String?
+  userAgent String?
+
+  unit MedicineUnit @relation(fields: [unitId], references: [id])
+
+  @@index([unitId])
+  @@index([scannedAt])
+}
+
+// ─── Sale ─────────────────────────────────────────────────────────────────────
+
+model Sale {
+  id            String   @id @default(cuid())
+  unitId        String   @unique
+  pharmacyOrgId String
+  soldAt        DateTime @default(now())
+  notes         String?
+
+  unit     MedicineUnit @relation(fields: [unitId], references: [id])
+  pharmacy Organization @relation(fields: [pharmacyOrgId], references: [id])
+
+  @@index([unitId])
+}
+
+// ─── Recall ───────────────────────────────────────────────────────────────────
+
+model Recall {
+  id          String   @id @default(cuid())
+  batchId     String
+  reason      String
+  initiatedBy String?
+  recalledAt  DateTime @default(now())
+
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  @@index([batchId])
+}
+
+// ─── FraudAlert ───────────────────────────────────────────────────────────────
+
+model FraudAlert {
+  id         String    @id @default(cuid())
+  unitId     String
+  riskScore  Int
+  riskLevel  String    // RiskLevel: LOW | MEDIUM | HIGH | CRITICAL
+  reasons    String    // JSON string array
+  location   String?
+  lat        Float?
+  lng        Float?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  unit MedicineUnit @relation(fields: [unitId], references: [id])
+
+  @@index([unitId])
+  @@index([riskLevel])
+  @@index([createdAt])
+}
+
+// ─── AuditEvent ───────────────────────────────────────────────────────────────
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  eventType    String   // EventType enum
+  entityId     String
+  eventData    String   // JSON string
+  previousHash String
+  currentHash  String
+  timestamp    DateTime @default(now())
+  actorId      String?
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityId])
+  @@index([timestamp])
+}

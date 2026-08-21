@@ -123,11 +123,23 @@ function buildTimeline(unit: any) {
     PHARMACY: 'PHARMACY',
   };
 
-  return unit.supplyChain.map((ev: any) => ({
+  // Step 1 is always the manufacturing origin
+  const manufacturerStep = {
+    stage: 'MANUFACTURER',
+    organization: unit.batch.medicine.manufacturer.name,
+    location: unit.batch.medicine.manufacturer.city ?? 'Manufacturing Facility',
+    timestamp: unit.batch.manufactureDate.toISOString(),
+    auditHash: '',
+  };
+
+  // Steps 2–N come from actual transfer events
+  const transferSteps = unit.supplyChain.map((ev: any) => ({
     stage: stageMap[ev.receiverOrg?.type] ?? ev.eventType,
     organization: ev.receiverOrg?.name ?? 'Unknown',
     location: ev.location ?? ev.receiverOrg?.city ?? 'Unknown',
     timestamp: ev.timestamp.toISOString(),
     auditHash: ev.auditHash ?? '',
   }));
+
+  return [manufacturerStep, ...transferSteps];
 }

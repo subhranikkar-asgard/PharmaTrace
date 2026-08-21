@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Search, Loader2, QrCode, Camera } from 'lucide-react';
+import { Search, Loader2, Camera } from 'lucide-react';
 import { verifyUnit } from '../services/api';
 import { VerifiedCard } from '../components/VerifyResult/VerifiedCard';
 import { SuspiciousCard } from '../components/VerifyResult/SuspiciousCard';
@@ -24,12 +24,7 @@ export function VerifyPage() {
   const [error, setError] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
 
-  const handleScan = useCallback((scannedId: string) => {
-    setShowScanner(false);
-    setUnitId(scannedId);
-    handleVerify(scannedId);
-  }, []);
-
+  // handleVerify MUST be defined before handleScan (handleScan calls it)
   const handleVerify = useCallback(async (id?: string) => {
     const targetId = (id ?? unitId).trim();
     if (!targetId) return;
@@ -41,12 +36,18 @@ export function VerifyPage() {
       setResult(data);
       navigate(`/verify/${targetId}`, { replace: true });
     } catch (err: any) {
-      const msg = err?.response?.data?.error?.message ?? 'Verification failed. Check unit ID.';
+      const msg = err?.response?.data?.error?.message ?? 'Verification failed. Check unit ID and try again.';
       setError(msg);
     } finally {
       setLoading(false);
     }
   }, [unitId, navigate]);
+
+  const handleScan = useCallback((scannedId: string) => {
+    setShowScanner(false);
+    setUnitId(scannedId);
+    handleVerify(scannedId);
+  }, [handleVerify]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleVerify();
@@ -152,7 +153,7 @@ export function VerifyPage() {
         {/* Empty state */}
         {!result && !loading && !error && (
           <div className="text-center py-12 text-slate-400">
-            <QrCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <Camera className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm">Scan a QR code or enter a unit ID above to verify</p>
           </div>
         )}

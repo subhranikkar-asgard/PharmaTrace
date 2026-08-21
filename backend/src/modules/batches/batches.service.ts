@@ -95,14 +95,16 @@ export async function deleteBatch(batchId: string, organizationId: string) {
   const unitIds = batch.units.map(u => u.id);
 
   await prisma.$transaction(async (tx) => {
-    // Delete dependent records first
     if (unitIds.length > 0) {
+      // Delete all child records of units (in correct FK order)
       await tx.fraudAlert.deleteMany({ where: { unitId: { in: unitIds } } });
       await tx.scanEvent.deleteMany({ where: { unitId: { in: unitIds } } });
-      await tx.transfer.deleteMany({ where: { unitId: { in: unitIds } } });
-      await tx.saleRecord.deleteMany({ where: { unitId: { in: unitIds } } });
+      await tx.supplyChainEvent.deleteMany({ where: { unitId: { in: unitIds } } });
+      await tx.sale.deleteMany({ where: { unitId: { in: unitIds } } });
       await tx.medicineUnit.deleteMany({ where: { batchId } });
     }
+    // Delete batch-level records
+    await tx.recall.deleteMany({ where: { batchId } });
     await tx.auditEvent.deleteMany({ where: { entityId: batchId } });
     await tx.batch.delete({ where: { id: batchId } });
   });

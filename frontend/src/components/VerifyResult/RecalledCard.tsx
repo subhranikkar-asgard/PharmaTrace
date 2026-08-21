@@ -1,4 +1,5 @@
 import { XCircle } from 'lucide-react';
+import { SupplyChainTimeline } from '../SupplyChainTimeline';
 import type { VerificationResponse } from '../../types';
 
 interface Props { data: VerificationResponse }
@@ -36,6 +37,17 @@ export function RecalledCard({ data }: Props) {
           <div className="text-5xl font-extrabold text-red-600">{data.riskScore}</div>
           <div className="text-sm text-slate-500 mt-1">Risk Score · {data.riskLevel}</div>
         </div>
+
+        {/* Supply Chain Journey */}
+        {data.supplyChain && data.supplyChain.length > 0 && (
+          <div className="pt-1">
+            <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-500 rounded-full inline-block" />
+              Supply Chain Journey
+            </p>
+            <SupplyChainTimeline steps={data.supplyChain} />
+          </div>
+        )}
 
         {/* Critical Warning */}
         <div className="bg-red-700 text-white rounded-xl px-4 py-4 text-center">

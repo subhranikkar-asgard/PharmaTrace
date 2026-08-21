@@ -1,5 +1,6 @@
 import { AlertTriangle, AlertCircle } from 'lucide-react';
 import { RiskScoreBadge } from '../RiskScoreBadge';
+import { SupplyChainTimeline } from '../SupplyChainTimeline';
 import type { VerificationResponse } from '../../types';
 
 interface Props { data: VerificationResponse }
@@ -46,6 +47,17 @@ export function SuspiciousCard({ data }: Props) {
             ))}
           </ul>
         </div>
+
+        {/* Warning banner */}
+        {data.supplyChain && data.supplyChain.length > 0 && (
+          <div className="pt-1">
+            <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-amber-500 rounded-full inline-block" />
+              Supply Chain Journey
+            </p>
+            <SupplyChainTimeline steps={data.supplyChain} />
+          </div>
+        )}
 
         {/* Warning banner */}
         <div className="bg-amber-600 text-white rounded-xl px-4 py-3 text-center">

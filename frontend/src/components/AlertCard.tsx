@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { RiskScoreBadge } from './RiskScoreBadge';
-import { SupplyChainTimeline } from './SupplyChainTimeline';
 import type { AlertItem } from '../types';
 
 interface Props {

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { login as apiLogin, getMe } from '../services/api';
+import { login as apiLogin } from '../services/api';
 import type { LoginResponse } from '../types';
 
 const TOKEN_KEY = 'pharmatrace_token';

@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "npx prisma generate && npx prisma db push --accept-data-loss && npx ts-node prisma/seed.ts",
+    "start": "npx ts-node src/index.ts",
     "prisma:seed": "ts-node prisma/seed.ts"
   },
   "prisma": {

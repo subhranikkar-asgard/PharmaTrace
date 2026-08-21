@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth';
 import { validateBody } from '../../middleware/validate';
-import { createBatch, getBatches, getBatchById, getAllBatches } from './batches.service';
+import { createBatch, getBatches, getBatchById, getAllBatches, deleteBatch } from './batches.service';
 
 const router = Router();
 
@@ -41,6 +41,15 @@ router.get('/:batchId', authenticate, authorize('MANUFACTURER', 'REGULATOR'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await getBatchById(req.params.batchId);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  }
+);
+
+router.delete('/:batchId', authenticate, authorize('MANUFACTURER'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await deleteBatch(req.params.batchId, req.user!.orgId);
       res.json({ success: true, data });
     } catch (err) { next(err); }
   }

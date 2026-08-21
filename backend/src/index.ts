@@ -21,7 +21,25 @@ import { prisma } from './db';
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(cors({ origin: config.frontendUrl, credentials: true }));
+// CORS — allow all origins for hackathon demo (restrict in production)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+  'https://frontend-pearl-theta-17.vercel.app',
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Also allow any vercel.app subdomain for preview deployments
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    return callback(null, true); // open for hackathon
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // ─── Health check ─────────────────────────────────────────────────────────────
